@@ -29,6 +29,7 @@ Bundles features.
 2\. [Credential Folder](#credential-folder)
 2\.1\. [Credential Bundle](#credential-bundle)
 2\.2\. [SPIFFE Trust Bundles](#spiffe-trust-bundles)
+2\.3\. [Redaction](#redaction)
 3\. [Application Behavior](#application-behavior)
 3\.1\. [Loading and Refreshing the Credential
 Bundle](#loading-and-refreshing-the-credential-bundle)
@@ -161,6 +162,33 @@ these certificates for standard server TLS certificate verification.  In
 particular, it is *never* safe to combine the contents of more than one SPIFFE
 trust bundle into a single, undifferentiated bag of root certificates.
 
+### 2.3 Redaction {#redaction}
+
+Over time, a provisioning system may need to withdraw something it previously
+supplied: a trust domain may be de-federated, a trust anchor may be retired from
+a bundle, or an application may cease to be entitled to an SVID.  This section
+defines how the provisioning system signals that, and how the application is
+expected to interpret it.
+
+Any of the files defined by this specification MAY be present but empty.  An
+empty file is a deliberate redaction: the provisioning system is indicating that
+the credential or trust bundle the file would otherwise hold is no longer
+available to the application.  The application SHOULD interpret an empty file as
+a redaction rather than as malformed content.  As an example, if an application
+has loaded a trust bundle for trust domain X, and
+`X.spiffe-trust-bundle.x509.pem` later becomes empty, then that bundle SHOULD be
+unloaded.
+
+Redaction is not limited to whole files.  If the provisioning system removes a
+trust anchor from a trust bundle, leaving the file in place and its remaining
+anchors intact, the application SHOULD stop using the removed anchor on the same
+terms as it would stop using a redacted file.
+
+Provisioning systems SHOULD redact by writing an empty file, rather than by
+removing the file from the credential folder.  A file that is absent from the
+folder may instead be an artifact of the folder being remounted or repopulated,
+so emptiness is a stronger signal of intent than absence.
+
 ## 3. Application Behavior {#application-behavior}
 
 This specification does not define how an application discovers the path of its
@@ -192,7 +220,8 @@ reasonably possible after the provisioning system updates it.  The application
 SHOULD NOT assume that the updated bundle will have any commonality with the
 previous bundle.  For example, the type of the private
 key may be different, or the certificate may be issued from a different root,
-with different intermediates.
+with different intermediates.  The provisioning system may also redact the
+credential bundle entirely, as described in [section 2.3](#redaction).
 
 ### 3.2 Validating Peer SPIFFE Certificates {#validating-peer-spiffe-certificates}
 
@@ -213,9 +242,9 @@ but it SHOULD reflect updates from the filesystem as soon as reasonably
 possible.
 
 The application SHOULD handle de-federation; if it has loaded a trust bundle for
-trust domain X, and then X's trust bundle is removed from the credential folder,
-the application SHOULD begin failing to verify certificates for trust domain X
-as soon as reasonably possible.
+trust domain X, and X's trust bundle is subsequently redacted as described in
+[section 2.3](#redaction), the application SHOULD begin failing to verify
+certificates for trust domain X as soon as reasonably possible.
 
 As mentioned in section 2.2, it is not safe to use the contents of a SPIFFE
 trust bundle file except by a SPIFFE-aware application performing SPIFFE X.509
@@ -271,7 +300,7 @@ For example, we could implement a controller that handles the signer name
   `spiffe.example/identity`.  The precise details of the issued certificate are
   up to the controller.  In this case, assume that it is configured to issue
   certificates with SPIFFE IDs like
-  `spiffe://domain-a.myorg.example/ns/<namespace>/sa/<service-account>`.
+  `spiffe://a.myorg.example/ns/<namespace>/sa/<service-account>`.
 * Maintain a set of ClusterTrustBundles associated with
   `spiffe.example/identity`.  There are many potential ways to structure the set
   of ClusterTrustBundles, but one that would work is to use labels to divide
