@@ -17,7 +17,6 @@ systems a concrete target to aim for:
 * How identity provisioning systems should write SPIFFE SVIDs.
 * How identity provisioning systems should write SPIFFE trust bundles for the
   local and any federated trust domains.
-* Where applications should look to discover these credentials.
 * How applications should read them.
 
 As a concrete target, all of the features required by this specification are
@@ -31,11 +30,14 @@ Bundles features.
 2\.1\. [Credential Bundle](#credential-bundle)
 2\.2\. [SPIFFE Trust Bundles](#spiffe-trust-bundles)
 3\. [Application Behavior](#application-behavior)
-3\.1\. [Locating the Credential Folder](#locating-the-credential-folder)
-3\.2\. [Loading and Refreshing the Credential Bundle](#loading-and-refreshing-the-credential-bundle)
-3\.3\. [Validating Peer SPIFFE Certificates](#validating-peer-spiffe-certificates)
-Appendix A. [Filesystem Delivery and the Workload API](#filesystem-delivery-vs-the-workload-api)
-Appendix B. [Reference Example: Filesystem Delivery on Kubernetes](#example-kubernetes-setup)
+3\.1\. [Loading and Refreshing the Credential
+Bundle](#loading-and-refreshing-the-credential-bundle)
+3\.2\. [Validating Peer SPIFFE
+Certificates](#validating-peer-spiffe-certificates)
+Appendix A. [Filesystem Delivery and the Workload
+API](#filesystem-delivery-vs-the-workload-api)
+Appendix B. [Reference Example: Filesystem Delivery on
+Kubernetes](#example-kubernetes-setup)
 
 
 ## 1. Participants {#participants}
@@ -75,6 +77,14 @@ provisioning system and application must be coordinated so that the application
 knows where to find the additional credential folders, and in which
 circumstances they should be used.
 
+This revision of the specification covers a single X.509 SVID per credential
+folder.  Multiple SVIDs within one folder, credential types other than X.509
+SVIDs, the SPIFFE Workload API's SVID hints, and its notion of a default
+identity are not supported.  Because a credential folder MAY contain other files
+and directories, a provisioning system and application that are coordinated with
+each other MAY use additional files to cover these cases; this specification
+does not define how, and may define a standard mechanism in a future revision.
+
 Because the credential folder contains sensitive credentials, provisioning
 systems SHOULD ensure that their contents do not appear on physical disks or in
 automatic backups.
@@ -85,7 +95,7 @@ A credential bundle file contains the application's private key and certificate
 chain.  Combining these together into one file ensures that the provisioning
 system can rotate the key and certificate atomically.  (Note that, for safety,
 the application must also read this file atomically, as described in section
-3.2).
+3.1).
 
 The credential bundle consists of two or more PEM blocks.  The first block must
 be of type PRIVATE KEY, and contain a PKCS#8-serialized private key.
@@ -153,25 +163,14 @@ trust bundle into a single, undifferentiated bag of root certificates.
 
 ## 3. Application Behavior {#application-behavior}
 
-### 3.1 Locating the Credential Folder {#locating-the-credential-folder}
-The application SHOULD search for a SPIFFE credential folder with the following
-procedure:
-1. The application should first follow the procedure from [SPIFFE Workload
-   Endpoint, Section
-   4](https://spiffe.io/docs/latest/spiffe-specs/spiffe_workload_endpoint/#4-locating-the-endpoint)
-   to determine if the SPIFFE Workload API is available.
-2. If the application supports an application-specific configuration mechanism
-   for picking a SPIFFE credential folder, it should use the credential folder
-   indicated by that configuration.
-3. Otherwise, if the SPIFFE_CREDENTIAL_FOLDER environment variable is set, and
-   contains a valid path for the platform, the application should treat that
-   folder as the credential folder to use.
-4. Otherwise, the application has not been issued SPIFFE credentials.
+This specification does not define how an application discovers the path of its
+credential folder, and defines no default or well-known location for it.  That
+path is agreed out-of-band between the provisioning system and the application,
+for example through application-specific configuration, as is any filesystem
+permission needed to keep a credential folder readable only by its intended
+workload.
 
-This specification does not define a default or well-known location for the
-credential folder.
-
-### 3.2 Loading and Refreshing the Credential Bundle {#loading-and-refreshing-the-credential-bundle}
+### 3.1 Loading and Refreshing the Credential Bundle {#loading-and-refreshing-the-credential-bundle}
 
 Before the application can use its SPIFFE credentials, it needs to load the
 credential bundle from the filesystem.
@@ -189,12 +188,13 @@ writes the updated content.
 
 The provisioning system may periodically update the credential bundle on the
 filesystem.  The application SHOULD reload the credential bundle as soon as
-reasonably possible after the provisioning system updates it.  The application SHOULD NOT assume that the updated bundle will have
-any commonality with the previous bundle.  For example, the type of the private
+reasonably possible after the provisioning system updates it.  The application
+SHOULD NOT assume that the updated bundle will have any commonality with the
+previous bundle.  For example, the type of the private
 key may be different, or the certificate may be issued from a different root,
 with different intermediates.
 
-### 3.3 Validating Peer SPIFFE Certificates {#validating-peer-spiffe-certificates}
+### 3.2 Validating Peer SPIFFE Certificates {#validating-peer-spiffe-certificates}
 
 In order to verify a SPIFFE X.509 SVID presented by a peer, the application
 needs to determine the correct SPIFFE trust bundle for the peer's trust domain.
@@ -237,16 +237,22 @@ Filesystem Delivery exists because, in certain computing environments, such as
 Kubernetes, it is easier for the environment to furnish *files* to the workload,
 rather than making a TCP or Unix socket service available.  It's also lower
 effort to read files from workloads, but, as described in [Section
-3.2](#loading-and-refreshing-the-credential-bundle), it still requires care.
+3.1](#loading-and-refreshing-the-credential-bundle), it still requires care.
 
 Given these two choices, which should you use?
 
 If you are writing or maintaining an application that needs to load and use
 SPIFFE credentials, you should ideally support both the Workload API and
-Filesystem Delivery, following the procedure from [Section
-3.1](#locating-the-credential-folder) to select.
+Filesystem Delivery.  This specification does not define how an application
+selects between them; that selection is part of the same out-of-band
+configuration that supplies the credential folder path.
 
 ## Appendix B: Reference Example - Filesystem Delivery on Kubernetes {#example-kubernetes-setup}
+
+This appendix is a non-normative example.  It adds no requirements to this
+specification, and a conforming implementation may arrange these primitives
+differently.  In particular, the ClusterTrustBundle label scheme below is
+illustrative only; this specification does not standardize it.
 
 Kubernetes provides two built-in mechanisms that can be used together to
 implement the SPIFFE Filesystem Delivery API:
@@ -289,7 +295,9 @@ federated with C, workloads in B should not automatically also be federated just
 because they happen to run in the same Kubernetes cluster.
 
 This information can then be mounted into an application pod in a way that forms
-a valid SPIFFE credential folder, with an environment variable that the app understands.
+a valid SPIFFE credential folder, with an environment variable that the
+application understands.  That variable is specific to the application; this
+specification does not define one.
 
 ```
 apiVersion: apps/v1
