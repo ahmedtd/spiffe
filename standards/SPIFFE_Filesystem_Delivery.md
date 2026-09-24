@@ -98,8 +98,8 @@ system can rotate the key and certificate atomically.  (Note that, for safety,
 the application must also read this file atomically, as described in section
 3.1).
 
-The credential bundle consists of two or more PEM blocks.  The first block must
-be of type PRIVATE KEY, and contain a PKCS#8-serialized private key.
+The credential bundle consists of two or more PEM blocks.  The first block MUST
+be of type PRIVATE KEY, and MUST contain a PKCS#8-serialized private key.
 
 Compatibility Note: Some provisioning systems offer features for keeping the
 private key inaccessible to the application, only exposing RPCs for signing
@@ -108,7 +108,7 @@ credential bundle might omit the private key.  The provisioning system and
 application must be coordinated to make this happen.  SPIFFE-compliant
 applications are not required to seamlessly handle this case.
 
-The remaining PEM blocks must be of type CERTIFICATE, and contain the
+The remaining PEM blocks MUST be of type CERTIFICATE, and contain the
 application's certificate chain, in leaf-to-root order.  The leaf certificate
 must be issued to the public key derived from the PRIVATE KEY block.  The leaf
 certificate SHOULD be an X.509 SVID.
@@ -132,7 +132,7 @@ intermediate state.
 The developer SHOULD NOT copy this file anywhere, since compromise of the
 credential-bundle.private-key.x509.pem file could compromise the security of
 TLS sessions. The provisioning system SHOULD be configured to limit access to
-the credential-bundle.private-key.x509.pem file to only the necessary user(s).
+the credential-bundle.private-key.x509.pem file to only the intended consumer(s).
 
 ### 2.2 SPIFFE Trust Bundles {#spiffe-trust-bundles}
 
