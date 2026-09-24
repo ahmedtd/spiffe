@@ -215,7 +215,7 @@ open/read/close cycles.  This is true even if the provisioning system atomically
 writes the updated content.
 
 The provisioning system may periodically update the credential bundle on the
-filesystem.  The application SHOULD reload the credential bundle as soon as
+filesystem.  The application MUST reload the credential bundle as soon as
 reasonably possible after the provisioning system updates it.  The application
 SHOULD NOT assume that the updated bundle will have any commonality with the
 previous bundle.  For example, the type of the private
